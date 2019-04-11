@@ -5,6 +5,7 @@ from .pytesseract import (
     image_to_boxes,
     image_to_osd,
     image_to_pdf_or_hocr,
+    image_to_info_files,
     TesseractError,
     Output
 )

@@ -114,7 +114,7 @@ def prepare(image):
 
 
 def save_image(image):
-    temp_name = tempfile.mktemp(prefix='tess_')
+    _, temp_name = tempfile.mkstemp(prefix='tess_')
     if isinstance(image, str):
         return temp_name, realpath(normpath(normcase(image)))
 
@@ -307,7 +307,57 @@ def image_to_string(image,
         Output.DICT: lambda: {'text': run_and_get_output(*args)},
         Output.STRING: lambda: run_and_get_output(*args),
     }[output_type]()
+    
+def image_to_info_files(image,
+                    lang=None,
+                    config='',
+                    nice=0,
+                    extensions=('txt')):
+    '''
+    Returns a tuple of results of a Tesseract OCR run on the provided image 
+    to multiple format output files
+    '''
+    try:
+        temp_name, input_filename = save_image(image)
+        output_filename_base =  temp_name + '_out'
 
+        cmd_args = []
+
+        if not sys.platform.startswith('win32') and nice != 0:
+            cmd_args += ('nice', '-n', str(nice))
+
+        cmd_args += (tesseract_cmd, input_filename, output_filename_base)
+
+        if lang is not None:
+            cmd_args += ('-l', lang)
+
+        cmd_args += shlex.split(config)
+
+        cmd_args += extensions
+
+        try:
+            proc = subprocess.Popen(cmd_args, **subprocess_args())
+        except OSError:
+            raise TesseractNotFoundError()
+
+        try:
+            _, error_string = proc.communicate()
+        finally:
+            proc.stdin.close()
+            proc.stdout.close()
+            proc.stderr.close()
+
+        if proc.returncode:
+            raise TesseractError(proc.returncode, get_errors(error_string))
+
+        result = []
+        for extension in extensions:
+            with open(output_filename_base + "." + extension, 'rb') as output_file:
+                result.append(output_file.read().decode('utf-8').strip())
+        return result
+
+    finally:
+        cleanup(temp_name)
 
 def image_to_pdf_or_hocr(image,
                     lang=None,
